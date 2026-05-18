@@ -2,6 +2,9 @@
 
 API backend for the FreshDash hyperlocal grocery delivery mobile app.
 
+**Implementation status:** see [`backend_progress.md`](backend_progress.md).  
+**Mobile API contract:** see [`progress.md`](progress.md).
+
 ## Quick start
 
 ```bash

@@ -9,6 +9,24 @@ from apps.stores.models import Store
 from apps.stores.serializers import StoreSerializer, haversine_km
 
 
+class StoreListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        lat = request.query_params.get("lat")
+        lng = request.query_params.get("lng")
+        stores = list(Store.objects.filter(is_active=True))
+        if lat and lng:
+            for store in stores:
+                store.distance_km = haversine_km(lat, lng, store.latitude, store.longitude)
+            stores.sort(key=lambda s: s.distance_km)
+        else:
+            for store in stores:
+                store.distance_km = 0
+            stores.sort(key=lambda s: s.name)
+        return Response(StoreSerializer(stores, many=True, context={"request": request}).data)
+
+
 class NearbyStoresView(APIView):
     permission_classes = [AllowAny]
 

@@ -1,5 +1,6 @@
 from apps.catalog.serializers import ProductSerializer
 from apps.orders.models import Address, Order, OrderItem
+from apps.orders.utils import compute_is_on_time, user_avatar_url
 
 
 def serialize_order_item(item: OrderItem, request=None):
@@ -49,13 +50,16 @@ def serialize_order(order: Order, request=None):
         data["estimatedDelivery"] = order.estimated_delivery_at.isoformat()
     if order.delivery_window_label:
         data["estimatedDeliveryWindow"] = order.delivery_window_label
+    on_time = compute_is_on_time(order)
+    if on_time is not None:
+        data["isOnTime"] = on_time
     assignment = getattr(order, "delivery_assignment", None)
     if assignment and assignment.partner:
         partner_user = assignment.partner.user
         data["deliveryPartner"] = {
             "id": str(partner_user.id),
             "name": partner_user.name,
-            "avatarUrl": "",
+            "avatarUrl": user_avatar_url(partner_user, request),
             "rating": float(assignment.partner.rating),
             "title": "Your Delivery Hero",
         }

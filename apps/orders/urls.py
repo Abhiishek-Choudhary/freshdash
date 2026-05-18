@@ -18,4 +18,5 @@ urlpatterns = [
     path("vendor/orders/<uuid:order_id>/reject", views.VendorOrderActionView.as_view(), {"action": "reject"}),
     path("vendor/orders/<uuid:order_id>/ready", views.VendorOrderActionView.as_view(), {"action": "ready"}),
     path("vendor/analytics", views.VendorAnalyticsView.as_view()),
+    path("vendor/earnings", views.VendorEarningsView.as_view()),
 ]

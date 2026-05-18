@@ -48,3 +48,28 @@ def test_otp_login_flow():
     )
     assert r2.status_code == 200
     assert "tokens" in r2.json()
+
+
+@pytest.mark.django_db
+def test_signup_then_verify_otp():
+    client = APIClient()
+    phone = "+917777777777"
+    r1 = client.post(
+        "/api/auth/signup",
+        {
+            "name": "New User",
+            "email": "new@freshdash.demo",
+            "phone": phone,
+            "role": UserRole.USER,
+        },
+        format="json",
+    )
+    assert r1.status_code == 200
+    assert r1.json()["otpSent"] is True
+    r2 = client.post(
+        "/api/auth/verify-otp",
+        {"phone": phone, "otp": "123456"},
+        format="json",
+    )
+    assert r2.status_code == 200
+    assert r2.json()["user"]["phone"] == phone

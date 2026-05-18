@@ -1,4 +1,5 @@
 import random
+from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -99,6 +100,7 @@ def create_order(user, data):
     while Order.objects.filter(display_id=display_id).exists():
         display_id = generate_display_id()
 
+    eta_at = timezone.now() + timedelta(minutes=store.delivery_time_max)
     order = Order.objects.create(
         display_id=display_id,
         customer=user,
@@ -114,6 +116,7 @@ def create_order(user, data):
         taxes=taxes,
         discount=discount,
         total=total,
+        estimated_delivery_at=eta_at,
     )
 
     for product, qty in products:

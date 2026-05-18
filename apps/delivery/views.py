@@ -8,6 +8,7 @@ from apps.accounts.permissions import IsDeliveryPartner
 from apps.delivery.models import DeliveryAssignment
 from apps.orders.models import Order, OrderStatus
 from apps.orders.serializers import serialize_order
+from apps.delivery.location import update_assignment_location
 from apps.orders.services.status import transition_order
 
 
@@ -137,6 +138,32 @@ class AssignmentDetailView(APIView):
                 "driverEarnings": float(assignment.driver_earnings),
                 "pickupConfirmed": assignment.pickup_confirmed_at is not None,
                 "status": order.status,
+            }
+        )
+
+
+class AssignmentLocationView(APIView):
+    permission_classes = [IsAuthenticated, IsDeliveryPartner]
+
+    def patch(self, request, assignment_id):
+        lat = request.data.get("lat")
+        lng = request.data.get("lng")
+        if lat is None or lng is None:
+            return Response(
+                {"message": "lat and lng required", "code": "validation_error"},
+                status=400,
+            )
+        assignment = DeliveryAssignment.objects.filter(
+            id=assignment_id, partner=request.user.delivery_profile
+        ).first()
+        if not assignment:
+            return Response({"message": "Not found", "code": "not_found"}, status=404)
+        update_assignment_location(assignment, lat, lng)
+        return Response(
+            {
+                "orderId": str(assignment.order_id),
+                "lat": float(assignment.driver_latitude),
+                "lng": float(assignment.driver_longitude),
             }
         )
 

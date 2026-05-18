@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "apps.orders",
     "apps.delivery",
     "apps.notifications",
+    "apps.payments",
 ]
 
 MIDDLEWARE = [
@@ -42,6 +43,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "config.middleware.rate_limit.ApiRateLimitMiddleware",
 ]
 
 TEMPLATES = [
@@ -176,3 +178,19 @@ OTP_RATE_LIMIT = int(os.getenv("OTP_RATE_LIMIT", "5"))
 
 TAX_RATE = float(os.getenv("TAX_RATE", "0.05"))
 DRIVER_EARNINGS_FLAT = float(os.getenv("DRIVER_EARNINGS_FLAT", "45.0"))
+API_RATE_LIMIT_PER_MINUTE = int(os.getenv("API_RATE_LIMIT_PER_MINUTE", "120"))
+
+PAYMENT_PROVIDER = os.getenv("PAYMENT_PROVIDER", "mock")
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
+
+SMS_PROVIDER = os.getenv("SMS_PROVIDER", "")
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
+TWILIO_FROM_NUMBER = os.getenv("TWILIO_FROM_NUMBER", "")
+MSG91_AUTH_KEY = os.getenv("MSG91_AUTH_KEY", "")
+MSG91_SENDER_ID = os.getenv("MSG91_SENDER_ID", "FRESHD")
+MSG91_OTP_TEMPLATE_ID = os.getenv("MSG91_OTP_TEMPLATE_ID", "")
+
+FCM_SERVER_KEY = os.getenv("FCM_SERVER_KEY", "")

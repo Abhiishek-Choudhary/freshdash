@@ -42,8 +42,9 @@ def send_otp(phone: str, purpose: str) -> bool:
     )
     cache.set(rate_key, count + 1, timeout=3600)
     if not settings.OTP_DEV_CODE:
-        # Integrate SMS provider (Twilio/MSG91) here
-        pass
+        from apps.accounts.services.sms import send_sms
+
+        send_sms(phone, f"Your FreshDash OTP is {code}. Valid for {settings.OTP_EXPIRY_SECONDS // 60} minutes.")
     return True
 
 

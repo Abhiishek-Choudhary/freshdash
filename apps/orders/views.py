@@ -11,6 +11,7 @@ from apps.accounts.permissions import IsVendorOrStaff
 from apps.accounts.utils import get_user_store
 from apps.orders.models import Address, Coupon, DeliverySlotConfig, Order, OrderStatus
 from apps.orders.serializers import AddressSerializer, serialize_order
+from apps.orders.utils import driver_location_payload
 from apps.orders.services.create_order import create_order, validate_coupon
 from apps.orders.services.restock import restock_order_items
 from apps.orders.services.status import transition_order
@@ -86,43 +87,68 @@ class OrderDetailView(APIView):
 
 class OrderTrackView(APIView):
     def get(self, request, order_id):
-        order = Order.objects.filter(id=order_id, customer=request.user).first()
+        order = (
+            Order.objects.filter(id=order_id, customer=request.user)
+            .select_related("delivery_assignment")
+            .first()
+        )
         if not order:
             return Response({"message": "Not found", "code": "not_found"}, status=404)
-        return Response(
-            {
-                "status": order.status,
-                "estimatedDelivery": order.estimated_delivery_at.isoformat()
-                if order.estimated_delivery_at
-                else None,
-            }
-        )
+        payload = {
+            "status": order.status,
+            "estimatedDelivery": order.estimated_delivery_at.isoformat()
+            if order.estimated_delivery_at
+            else None,
+        }
+        assignment = getattr(order, "delivery_assignment", None)
+        if assignment:
+            location = driver_location_payload(assignment)
+            if location:
+                payload["driverLocation"] = location
+        return Response(payload)
 
 
 class CheckoutPreviewView(APIView):
     def get(self, request):
         from apps.cart.services import get_or_create_cart, cart_items_response
+        from apps.catalog.models import Product
 
         cart = get_or_create_cart(request.user)
         items = cart_items_response(cart, request)
-        subtotal = sum(
-            float(i["product"]["price"]) * i["quantity"] for i in items
-        )
-        delivery_fee = 29.0
+        subtotal = sum(float(i["product"]["price"]) * i["quantity"] for i in items)
+        coupon_code = request.query_params.get("couponCode") or request.query_params.get("coupon_code")
         discount = 0.0
+        if coupon_code:
+            try:
+                _, discount = validate_coupon(coupon_code, Decimal(str(subtotal)))
+                discount = float(discount)
+            except Exception:
+                coupon_code = None
+        store = None
+        if items:
+            first_product = Product.objects.filter(id=items[0]["productId"]).select_related("store").first()
+            store = first_product.store if first_product else None
+        delivery_fee = float(store.delivery_fee) if store else 29.0
+        strikethrough = float(store.delivery_fee) * 1.7 if store else 49.0
+        if strikethrough <= delivery_fee:
+            strikethrough = delivery_fee + 20.0
         taxes = (subtotal - discount) * 0.05
         total = subtotal - discount + delivery_fee + taxes
         address = Address.objects.filter(user=request.user, is_default=True).first()
+        summary = {
+            "itemTotal": subtotal,
+            "deliveryFee": delivery_fee,
+            "deliveryFeeStrikethrough": round(strikethrough, 2),
+            "taxes": taxes,
+            "discount": discount,
+            "total": total,
+        }
+        if coupon_code:
+            summary["couponCode"] = coupon_code
         return Response(
             {
                 "items": items,
-                "summary": {
-                    "itemTotal": subtotal,
-                    "deliveryFee": delivery_fee,
-                    "taxes": taxes,
-                    "discount": discount,
-                    "total": total,
-                },
+                "summary": summary,
                 "address": AddressSerializer.to_representation(address) if address else None,
             }
         )
@@ -242,11 +268,16 @@ class VendorDashboardView(APIView):
             )
         from django.db import models as db_models
 
-        low_stock = list(
-            Product.objects.filter(store=store, is_deleted=False)
-            .filter(stock_count__lte=db_models.F("low_stock_threshold"))
-            .values("id", "name", "stock_count")[:5]
-        )
+        low_stock = [
+            {
+                "id": str(p.id),
+                "name": p.name,
+                "stockLeft": p.stock_count,
+                "imageUrl": f"https://picsum.photos/seed/{p.id}/200/200",
+            }
+            for p in Product.objects.filter(store=store, is_deleted=False)
+            .filter(stock_count__lte=db_models.F("low_stock_threshold"))[:5]
+        ]
         return Response(
             {
                 "todayRevenue": float(revenue),
@@ -255,6 +286,29 @@ class VendorDashboardView(APIView):
                 "inDelivery": in_delivery,
                 "recentOrders": recent_data,
                 "inventoryAlerts": low_stock,
+            }
+        )
+
+
+class VendorEarningsView(APIView):
+    permission_classes = [IsAuthenticated, IsVendorOrStaff]
+
+    def get(self, request):
+        store = get_user_store(request.user)
+        if not store:
+            return Response({"today": 0, "week": 0, "month": 0})
+        now = timezone.now()
+        week_start = now - timezone.timedelta(days=7)
+        month_start = now - timezone.timedelta(days=30)
+        base = Order.objects.filter(store=store).exclude(status=OrderStatus.CANCELLED)
+        today_rev = base.filter(created_at__date=now.date()).aggregate(total=Sum("total"))["total"] or 0
+        week_rev = base.filter(created_at__gte=week_start).aggregate(total=Sum("total"))["total"] or 0
+        month_rev = base.filter(created_at__gte=month_start).aggregate(total=Sum("total"))["total"] or 0
+        return Response(
+            {
+                "today": float(today_rev),
+                "week": float(week_rev),
+                "month": float(month_rev),
             }
         )
 

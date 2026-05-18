@@ -59,7 +59,7 @@ class SignupSerializer(serializers.Serializer):
         password = validated_data.pop("password", None)
         user = User.objects.create_user(
             phone=phone,
-            password=password or User.objects.make_random_password(),
+            password=password,
             name=validated_data["name"],
             email=validated_data["email"],
             role=validated_data["role"],
@@ -112,3 +112,10 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 
 class RefreshTokenSerializer(serializers.Serializer):
     refresh_token = serializers.CharField()
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict):
+            token = data.get("refreshToken") or data.get("refresh_token")
+            if token is not None:
+                return {"refresh_token": token}
+        return super().to_internal_value(data)

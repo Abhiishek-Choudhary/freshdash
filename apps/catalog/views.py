@@ -49,14 +49,38 @@ class ProductSearchView(APIView):
 class ProductScanView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request):
-        barcode = request.query_params.get("barcode")
-        if not barcode:
-            return Response({"message": "barcode required", "code": "validation_error"}, status=400)
+    def _lookup(self, request, barcode: str):
         product = Product.objects.filter(barcode=barcode, is_deleted=False).first()
         if not product:
             return Response({"message": "Product not found", "code": "not_found"}, status=404)
         return Response(ProductSerializer(product, context={"request": request}).data)
+
+    def get(self, request):
+        barcode = request.query_params.get("barcode")
+        if not barcode:
+            return Response({"message": "barcode required", "code": "validation_error"}, status=400)
+        return self._lookup(request, barcode)
+
+    def post(self, request):
+        from apps.catalog.barcode import decode_barcode_from_image
+
+        barcode = request.data.get("barcode") or request.query_params.get("barcode")
+        if not barcode and request.FILES.get("image"):
+            barcode = decode_barcode_from_image(request.FILES["image"])
+            if not barcode:
+                return Response(
+                    {
+                        "message": "Could not read barcode from image. Install pyzbar or send barcode field.",
+                        "code": "barcode_decode_failed",
+                    },
+                    status=400,
+                )
+        if not barcode:
+            return Response(
+                {"message": "barcode or image required", "code": "validation_error"},
+                status=400,
+            )
+        return self._lookup(request, barcode)
 
 
 class RelatedProductsView(APIView):

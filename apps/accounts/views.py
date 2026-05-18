@@ -7,7 +7,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.accounts.exceptions import APIError
-from apps.accounts.models import OtpPurpose, User
+from apps.accounts.models import OtpChallenge, OtpPurpose, User
 from apps.accounts.serializers import (
     LoginSerializer,
     PasswordResetConfirmSerializer,
@@ -60,10 +60,15 @@ class VerifyOtpView(APIView):
         serializer.is_valid(raise_exception=True)
         phone = serializer.validated_data["phone"]
         otp = serializer.validated_data["otp"]
+        challenge = (
+            OtpChallenge.objects.filter(phone=phone, consumed=False)
+            .order_by("-created_at")
+            .first()
+        )
+        if not challenge:
+            raise APIError("Invalid or expired OTP", code="invalid_otp", status_code=400)
+        verify_otp(phone, otp, challenge.purpose)
         user = User.objects.filter(phone=phone).first()
-        purpose = OtpPurpose.SIGNUP if user is None else OtpPurpose.LOGIN
-        verify_otp(phone, otp, purpose)
-        user = user or User.objects.filter(phone=phone).first()
         if not user:
             raise APIError("User not found", code="user_not_found", status_code=404)
         return Response(build_auth_response(user))
