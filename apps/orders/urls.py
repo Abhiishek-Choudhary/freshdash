@@ -7,6 +7,7 @@ urlpatterns = [
     path("addresses/<uuid:address_id>", views.AddressDetailView.as_view()),
     path("orders", views.OrderListCreateView.as_view()),
     path("orders/<uuid:order_id>", views.OrderDetailView.as_view()),
+    path("orders/<uuid:order_id>/cancel", views.OrderCancelView.as_view()),
     path("orders/<uuid:order_id>/track", views.OrderTrackView.as_view()),
     path("checkout/slots", views.CheckoutSlotsView.as_view()),
     path("checkout/preview", views.CheckoutPreviewView.as_view()),

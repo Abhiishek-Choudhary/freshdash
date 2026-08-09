@@ -5,7 +5,14 @@ from rest_framework.views import APIView
 from apps.accounts.exceptions import APIError
 from apps.orders.models import Order, PaymentMethod, PaymentStatus
 from apps.payments.models import Payment
-from apps.payments.services import create_payment_intent, mark_payment_paid
+from apps.payments.services import create_payment_intent, mark_payment_paid, wallet_snapshot
+
+
+class WalletView(APIView):
+    """Ledger snapshot for the authenticated user — balance + recent entries."""
+
+    def get(self, request):
+        return Response(wallet_snapshot(request.user))
 
 
 class PaymentCreateView(APIView):

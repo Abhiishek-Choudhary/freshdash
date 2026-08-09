@@ -67,6 +67,36 @@ class OrderListCreateView(APIView):
         return Response(serialize_order(order, request), status=201)
 
 
+class OrderCancelView(APIView):
+    """Buyer-initiated cancellation. Allowed while the seller hasn't started
+    preparing yet (pending or confirmed). Rolls back stock and refunds any paid
+    payment. Notifications fire via the existing STATUS_COPY[CANCELLED] entry."""
+
+    def post(self, request, order_id):
+        order = Order.objects.filter(id=order_id, customer=request.user).first()
+        if not order:
+            return Response({"message": "Not found", "code": "not_found"}, status=404)
+        if order.status not in (OrderStatus.PENDING, OrderStatus.CONFIRMED):
+            return Response(
+                {
+                    "message": "Order can no longer be cancelled — the seller has already started preparing.",
+                    "code": "cannot_cancel",
+                },
+                status=400,
+            )
+        reason = request.data.get("reason") or "Cancelled by customer"
+        transition_order(order, OrderStatus.CANCELLED, request.user, reason)
+        restock_order_items(order)
+        # Refund any successful payment. COD is a no-op.
+        from apps.payments.models import Payment
+        from apps.orders.models import PaymentStatus
+
+        Payment.objects.filter(order=order).update(status=PaymentStatus.REFUNDED)
+        order.payment_status = PaymentStatus.REFUNDED if order.payment_status == PaymentStatus.PAID else order.payment_status
+        order.save(update_fields=["payment_status", "updated_at"])
+        return Response(serialize_order(order, request))
+
+
 class OrderDetailView(APIView):
     def get(self, request, order_id):
         order = Order.objects.filter(id=order_id).select_related("store").first()

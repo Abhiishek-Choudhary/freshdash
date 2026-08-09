@@ -6,4 +6,5 @@ urlpatterns = [
     path("payments/create", views.PaymentCreateView.as_view()),
     path("payments/confirm", views.PaymentConfirmView.as_view()),
     path("payments/webhook/<str:provider>", views.PaymentWebhookView.as_view()),
+    path("wallet", views.WalletView.as_view()),
 ]

@@ -87,3 +87,106 @@ def mark_payment_paid(payment: Payment):
     order = payment.order
     order.payment_status = PaymentStatus.PAID
     order.save(update_fields=["payment_status", "updated_at"])
+    # Ledger: buyer is charged the total.
+    record_order_charge(order)
+
+
+# ---------------------------------------------------------------------------
+# Ledger helpers — money movement per role at each lifecycle event
+# ---------------------------------------------------------------------------
+
+from decimal import Decimal
+from apps.payments.models import LedgerEntry, LedgerReason
+
+
+def _write(user, amount, reason, order=None, description=""):
+    if user is None or amount == 0:
+        return
+    LedgerEntry.objects.create(
+        user=user,
+        amount=Decimal(str(amount)),
+        reason=reason,
+        order=order,
+        description=description,
+    )
+
+
+def record_order_charge(order: Order):
+    """Buyer paid — debit the buyer's ledger. Called from mark_payment_paid
+    for prepaid orders, and manually for COD at delivery time."""
+    if LedgerEntry.objects.filter(order=order, reason=LedgerReason.ORDER_CHARGE).exists():
+        return
+    _write(
+        order.customer,
+        -order.total,
+        LedgerReason.ORDER_CHARGE,
+        order,
+        f"Payment for order {order.display_id}",
+    )
+
+
+def record_order_refund(order: Order):
+    """Cancel path — credit the buyer back."""
+    if LedgerEntry.objects.filter(order=order, reason=LedgerReason.ORDER_REFUND).exists():
+        return
+    _write(
+        order.customer,
+        order.total,
+        LedgerReason.ORDER_REFUND,
+        order,
+        f"Refund for order {order.display_id}",
+    )
+
+
+def record_delivery_earnings(assignment):
+    """Delivered → credit the delivery partner."""
+    if LedgerEntry.objects.filter(order=assignment.order, reason=LedgerReason.DELIVERY_EARNING).exists():
+        return
+    user = getattr(assignment.partner, "user", None) if assignment.partner else None
+    _write(
+        user,
+        assignment.driver_earnings,
+        LedgerReason.DELIVERY_EARNING,
+        assignment.order,
+        f"Delivery of {assignment.order.display_id}",
+    )
+
+
+def record_seller_payout(order: Order):
+    """Delivered → seller receives the subtotal (product revenue)."""
+    if LedgerEntry.objects.filter(order=order, reason=LedgerReason.SELLER_PAYOUT).exists():
+        return
+    profile = getattr(order.store, "owner", None)
+    user = getattr(profile, "user", None) if profile else None
+    _write(
+        user,
+        order.subtotal - order.discount,
+        LedgerReason.SELLER_PAYOUT,
+        order,
+        f"Payout for order {order.display_id}",
+    )
+
+
+def wallet_snapshot(user):
+    entries = LedgerEntry.objects.filter(user=user).order_by("-created_at")[:50]
+    total = LedgerEntry.objects.filter(user=user).aggregate(
+        s=models.Sum("amount")
+    )["s"] or Decimal("0")
+    return {
+        "balance": float(total),
+        "entries": [
+            {
+                "id": str(e.id),
+                "amount": float(e.amount),
+                "reason": e.reason,
+                "description": e.description,
+                "orderId": str(e.order_id) if e.order_id else None,
+                "createdAt": e.created_at.isoformat(),
+            }
+            for e in entries
+        ],
+    }
+
+
+# Local import so the module-level import at the top isn't polluted
+from django.db import models  # noqa: E402
