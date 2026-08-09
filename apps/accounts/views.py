@@ -9,6 +9,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from apps.accounts.exceptions import APIError
 from apps.accounts.models import OtpChallenge, OtpPurpose, User
 from apps.accounts.serializers import (
+    EmailLoginSerializer,
+    EmailRegisterSerializer,
     LoginSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
@@ -149,4 +151,30 @@ class PasswordLoginView(APIView):
                 user = user_obj
         if not user:
             raise APIError("Invalid credentials", code="invalid_credentials", status_code=401)
+        return Response(build_auth_response(user))
+
+
+class EmailRegisterView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = EmailRegisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(build_auth_response(user), status=status.HTTP_201_CREATED)
+
+
+class EmailLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = EmailLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+        password = serializer.validated_data["password"]
+        user = User.objects.filter(email__iexact=email).first()
+        if not user or not user.check_password(password):
+            raise APIError("Invalid email or password", code="invalid_credentials", status_code=401)
+        if not user.is_active:
+            raise APIError("Account is disabled", code="account_disabled", status_code=403)
         return Response(build_auth_response(user))

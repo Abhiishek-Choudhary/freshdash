@@ -86,6 +86,55 @@ class LoginSerializer(serializers.Serializer):
         return UserManager.normalize_phone(value)
 
 
+class EmailRegisterSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=255)
+    email = serializers.EmailField()
+    password = serializers.CharField(min_length=6, write_only=True)
+    role = serializers.ChoiceField(choices=UserRole.choices, default=UserRole.USER)
+
+    def validate_role(self, value):
+        if value in (UserRole.STAFF, UserRole.ADMIN):
+            raise serializers.ValidationError("This role cannot self-register.")
+        return value
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("Email already registered.")
+        return value.lower()
+
+    def create(self, validated_data):
+        import uuid as _uuid
+
+        # phone is USERNAME_FIELD and required unique; auto-generate a placeholder
+        placeholder_phone = f"email:{_uuid.uuid4().hex[:16]}"
+        user = User.objects.create_user(
+            phone=placeholder_phone,
+            password=validated_data["password"],
+            name=validated_data["name"],
+            email=validated_data["email"],
+            role=validated_data["role"],
+        )
+        if user.role == UserRole.VENDOR:
+            VendorProfile.objects.create(user=user, business_name=validated_data["name"])
+            from apps.stores.models import Store
+
+            Store.objects.create(
+                owner=user.vendor_profile,
+                name=f"{validated_data['name']}'s Store",
+            )
+        elif user.role == UserRole.DELIVERY_PARTNER:
+            DeliveryPartnerProfile.objects.create(user=user)
+        return user
+
+
+class EmailLoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+    def validate_email(self, value):
+        return value.lower()
+
+
 class VerifyOtpSerializer(serializers.Serializer):
     phone = serializers.CharField(max_length=20)
     otp = serializers.CharField(min_length=6, max_length=6)

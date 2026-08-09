@@ -1,9 +1,11 @@
-Django>=5.0,<6
+# Django 4.2 LTS works on Python 3.8+; upgrade to 5.x if you have Python 3.10+
+Django>=4.2,<6
 djangorestframework>=3.15
 djangorestframework-simplejwt>=5.3
 djangorestframework-camel-case>=1.4
 django-cors-headers>=4.3
-psycopg[binary]>=3.1
+# psycopg is only needed if you use Postgres; SQLite works with no extra deps
+psycopg[binary]>=3.1; python_version >= "3.9"
 redis>=5.0
 django-redis>=5.4
 python-socketio>=5.11
