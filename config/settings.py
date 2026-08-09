@@ -75,12 +75,11 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 if DATABASE_URL:
     import dj_database_url
 
+    # Only enforce SSL on external Postgres URLs (Render's internal URL is
+    # in-network and doesn't accept SSL). External URLs from managed providers
+    # typically already carry sslmode=require in the query string.
     DATABASES = {
-        "default": dj_database_url.parse(
-            DATABASE_URL,
-            conn_max_age=600,
-            ssl_require=DATABASE_URL.startswith("postgres") and "sslmode" not in DATABASE_URL,
-        ),
+        "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600),
     }
 else:
     DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
