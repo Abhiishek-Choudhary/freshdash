@@ -1,15 +1,25 @@
-# Render blueprint — https://render.com/docs/blueprint-spec
-# Deploy by clicking "New +" → "Blueprint" in the Render dashboard and pointing
-# it at this repository. All resources below are provisioned automatically.
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# Deploy: Render dashboard → "New +" → "Blueprint" → pick this repo.
+# Render will provision the web service AND the Postgres database, wire
+# DATABASE_URL between them, and set every env var listed below.
+#
+# NOTE: if you already created a web service manually and want to keep the
+# same URL (freshdash.onrender.com), delete the existing service first —
+# Blueprint will recreate it with the same name.
 
 services:
   - type: web
-    name: freshdash-api
+    name: freshdash
     runtime: python
     plan: free
+    region: oregon
+    # buildCommand runs on every deploy — installs deps, collects static,
+    # runs migrations. Marked executable in git so `./build.sh` works.
     buildCommand: "./build.sh"
-    # ASGI so both HTTP + Socket.IO websockets are served by one process
+    # ASGI so HTTP + Socket.IO websockets share one process.
     startCommand: "uvicorn config.asgi:application --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.5
@@ -23,6 +33,10 @@ services:
         value: "True"
       - key: OTP_DEV_CODE
         value: "123456"
+      - key: API_RATE_LIMIT_PER_MINUTE
+        value: "600"
+      - key: PAYMENT_PROVIDER
+        value: "mock"
       - key: DATABASE_URL
         fromDatabase:
           name: freshdash-db
@@ -33,3 +47,4 @@ databases:
     plan: free
     databaseName: freshdash
     user: freshdash
+    region: oregon

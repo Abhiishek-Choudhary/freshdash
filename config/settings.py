@@ -124,11 +124,14 @@ STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
 }
-# Silence WhiteNoise's "directory doesn't exist" warning if collectstatic
-# hasn't run yet (e.g. during local dev).
 WHITENOISE_AUTOREFRESH = DEBUG
+# Ensure the directory exists — WhiteNoise raises MissingFileError on requests
+# otherwise, which surfaces as a 500 even on views that don't touch statics.
+STATIC_ROOT.mkdir(parents=True, exist_ok=True)
+
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -140,7 +143,9 @@ CORS_ALLOWED_ORIGINS = [
     ).split(",")
     if o.strip()
 ]
-CORS_ALLOW_ALL_ORIGINS = DEBUG and os.getenv("CORS_ALLOW_ALL", "False").lower() in ("true", "1")
+# CORS_ALLOW_ALL controls this regardless of DEBUG, so a deployed backend
+# can accept requests from Expo Go / mobile clients on unknown origins.
+CORS_ALLOW_ALL_ORIGINS = os.getenv("CORS_ALLOW_ALL", "False").lower() in ("true", "1", "yes")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
@@ -196,3 +201,24 @@ MSG91_SENDER_ID = os.getenv("MSG91_SENDER_ID", "FRESHD")
 MSG91_OTP_TEMPLATE_ID = os.getenv("MSG91_OTP_TEMPLATE_ID", "")
 
 FCM_SERVER_KEY = os.getenv("FCM_SERVER_KEY", "")
+
+# When DEBUG=False, Django's default LOGGING silences exceptions from the
+# console. Print tracebacks to stderr so they show up in Render's log tab.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {"format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s"},
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "root": {"handlers": ["console"], "level": "INFO"},
+    "loggers": {
+        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+        "django.server": {"handlers": ["console"], "level": "INFO", "propagate": False},
+    },
+}
