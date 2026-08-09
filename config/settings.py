@@ -119,7 +119,14 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# Compressed but no manifest — doesn't blow up if collectstatic hasn't run yet.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
+}
+# Silence WhiteNoise's "directory doesn't exist" warning if collectstatic
+# hasn't run yet (e.g. during local dev).
+WHITENOISE_AUTOREFRESH = DEBUG
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
