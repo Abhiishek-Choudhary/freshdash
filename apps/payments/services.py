@@ -42,6 +42,13 @@ def create_payment_intent(order: Order, provider: str | None = None):
         "currency": payment.currency,
         "clientSecret": client_secret,
         "orderId": str(order.id),
+        # Public key so the frontend Razorpay Checkout can boot without a
+        # separate config call. Never expose RAZORPAY_KEY_SECRET here.
+        "publicKey": getattr(settings, "RAZORPAY_KEY_ID", "") if provider == PaymentProvider.RAZORPAY else "",
+        "customerName": getattr(order.customer, "name", ""),
+        "customerEmail": getattr(order.customer, "email", "") or "",
+        "customerPhone": getattr(order.customer, "phone", "") or "",
+        "orderDisplayId": order.display_id,
     }
 
 

@@ -53,8 +53,9 @@ STATUS_COPY = {
         "delivery": ("Delivery complete", "Nice work — earnings updated."),
     },
     OrderStatus.CANCELLED: {
-        "buyer": ("Order cancelled", "Your order was cancelled."),
-        "seller": ("Order cancelled", "An order was cancelled."),
+        "buyer": ("Order cancelled", "Your order was cancelled and any payment has been refunded."),
+        "seller": ("Order cancelled", "An order was cancelled — stock has been restocked."),
+        "delivery": ("Pickup cancelled", "The pickup you were assigned to has been cancelled."),
     },
 }
 
