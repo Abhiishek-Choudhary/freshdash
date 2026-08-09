@@ -1,0 +1,35 @@
+# Render blueprint — https://render.com/docs/blueprint-spec
+# Deploy by clicking "New +" → "Blueprint" in the Render dashboard and pointing
+# it at this repository. All resources below are provisioned automatically.
+
+services:
+  - type: web
+    name: freshdash-api
+    runtime: python
+    plan: free
+    buildCommand: "./build.sh"
+    # ASGI so both HTTP + Socket.IO websockets are served by one process
+    startCommand: "uvicorn config.asgi:application --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.5
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com,localhost,127.0.0.1"
+      - key: CORS_ALLOW_ALL
+        value: "True"
+      - key: OTP_DEV_CODE
+        value: "123456"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: freshdash-db
+          property: connectionString
+
+databases:
+  - name: freshdash-db
+    plan: free
+    databaseName: freshdash
+    user: freshdash
