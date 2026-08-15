@@ -1,9 +1,12 @@
+import logging
 import uuid
 
 from django.conf import settings
 
 from apps.orders.models import Order, PaymentMethod, PaymentStatus
 from apps.payments.models import Payment, PaymentProvider
+
+logger = logging.getLogger(__name__)
 
 
 def create_payment_intent(order: Order, provider: str | None = None):
@@ -66,6 +69,7 @@ def _stripe_client_secret(payment: Payment) -> str | None:
         payment.save(update_fields=["external_id", "updated_at"])
         return intent.client_secret
     except Exception:
+        logger.exception("Stripe intent creation failed for payment %s", payment.id)
         return None
 
 
@@ -85,6 +89,7 @@ def _razorpay_order_id(payment: Payment) -> str | None:
         payment.save(update_fields=["external_id", "updated_at"])
         return rp_order["id"]
     except Exception:
+        logger.exception("Razorpay order creation failed for payment %s", payment.id)
         return None
 
 

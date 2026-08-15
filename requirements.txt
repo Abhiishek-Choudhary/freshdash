@@ -20,3 +20,5 @@ pytest>=8.0
 pytest-django>=4.8
 requests>=2.31
 pyzbar>=0.1.9; platform_system != "Windows"
+razorpay>=1.4
+
