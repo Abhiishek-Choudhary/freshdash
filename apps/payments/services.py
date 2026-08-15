@@ -93,6 +93,66 @@ def _razorpay_order_id(payment: Payment) -> str | None:
         return None
 
 
+def verify_razorpay_webhook_signature(body: bytes, signature: str, secret: str) -> bool:
+    """Verify the X-Razorpay-Signature header against the raw body using the
+    webhook secret. Prefers the razorpay SDK if available, falls back to a
+    manual HMAC-SHA256 check (Razorpay's algorithm) if the SDK is missing so
+    the endpoint still functions."""
+    if not signature or not secret:
+        return False
+    try:
+        import razorpay
+
+        client = razorpay.Client(auth=(getattr(settings, "RAZORPAY_KEY_ID", "") or "x", secret))
+        client.utility.verify_webhook_signature(
+            body.decode("utf-8"), signature, secret
+        )
+        return True
+    except Exception:
+        # Manual verification so the endpoint still works if the SDK isn't
+        # installed. Razorpay uses HMAC-SHA256 hex digest.
+        try:
+            import hashlib
+            import hmac
+
+            expected = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+            return hmac.compare_digest(expected, signature)
+        except Exception:
+            logger.exception("Razorpay webhook signature verification failed unexpectedly")
+            return False
+
+
+def verify_razorpay_payment_signature(order_id: str, payment_id: str, signature: str) -> bool:
+    """Verify Razorpay's checkout callback signature (razorpay_signature) using
+    the key secret. Called from PaymentConfirmView when the client forwards it."""
+    key_secret = getattr(settings, "RAZORPAY_KEY_SECRET", "")
+    if not (order_id and payment_id and signature and key_secret):
+        return False
+    try:
+        import razorpay
+
+        client = razorpay.Client(auth=(getattr(settings, "RAZORPAY_KEY_ID", ""), key_secret))
+        client.utility.verify_payment_signature(
+            {
+                "razorpay_order_id": order_id,
+                "razorpay_payment_id": payment_id,
+                "razorpay_signature": signature,
+            }
+        )
+        return True
+    except Exception:
+        try:
+            import hashlib
+            import hmac
+
+            payload = f"{order_id}|{payment_id}".encode("utf-8")
+            expected = hmac.new(key_secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+            return hmac.compare_digest(expected, signature)
+        except Exception:
+            logger.exception("Razorpay payment signature verification failed unexpectedly")
+            return False
+
+
 def mark_payment_paid(payment: Payment):
     payment.status = PaymentStatus.PAID
     payment.save(update_fields=["status", "updated_at"])
